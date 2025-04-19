@@ -1,0 +1,323 @@
+import { useState, useRef, useEffect } from 'react';
+import { Heart, BarChart2, RotateCcw } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+export default function BuildingSwiper() {
+  // This is where you add or modify building cards
+  const [cards, setCards] = useState([
+    { 
+      id: 1, 
+      image: '/api/placeholder/400/600', 
+      title: 'Modern Skyscraper',
+      nextIfLike: 2,
+      nextIfDislike: 3
+    },
+    { 
+      id: 2, 
+      image: '/api/placeholder/400/600', 
+      title: 'Historic Castle',
+      nextIfLike: 4,
+      nextIfDislike: 3
+    },
+    { 
+      id: 3, 
+      image: '/api/placeholder/400/600', 
+      title: 'Brutalist Library',
+      nextIfLike: 4,
+      nextIfDislike: 1
+    },
+    { 
+      id: 4, 
+      image: '/api/placeholder/400/600', 
+      title: 'Glass Office Building',
+      nextIfLike: null,
+      nextIfDislike: null
+    },
+  ]);
+  
+  const [currentCardId, setCurrentCardId] = useState(1);
+  const [swipeDirection, setSwipeDirection] = useState(null);
+  const [liked, setLiked] = useState([]);
+  const [disliked, setDisliked] = useState([]);
+  const [favorites, setFavorites] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+  const [viewedCards, setViewedCards] = useState([]);
+  const [isFinished, setIsFinished] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const cardRef = useRef(null);
+
+  const currentCard = cards.find(card => card.id === currentCardId) || null;
+
+  // Convert favorites data for the bar chart
+  const favoriteChartData = cards.map(card => ({
+    name: card.title,
+    favorites: favorites.filter(fav => fav.id === card.id).length
+  })).filter(item => item.favorites > 0);
+
+  const handleTouchStart = (e) => {
+    setIsDragging(true);
+    setStartX(e.touches[0].clientX);
+    setStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e) => {
+    if (isDragging) {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const diffX = currentX - startX;
+      const diffY = currentY - startY;
+      setOffsetX(diffX);
+      setOffsetY(diffY);
+      
+      // Determine swipe direction
+      if (diffX > 50) {
+        setSwipeDirection('right');
+      } else if (diffX < -50) {
+        setSwipeDirection('left');
+      } else if (diffY < -50) {
+        setSwipeDirection('up');
+      } else {
+        setSwipeDirection(null);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isDragging) {
+      if (offsetX > 100) {
+        handleLike();
+      } else if (offsetX < -100) {
+        handleDislike();
+      } else if (offsetY < -100) {
+        handleFavorite();
+      }
+      
+      setIsDragging(false);
+      setOffsetX(0);
+      setOffsetY(0);
+      setSwipeDirection(null);
+    }
+  };
+
+  const handleLike = () => {
+    if (currentCard) {
+      setLiked([...liked, currentCard]);
+      setViewedCards([...viewedCards, currentCard.id]);
+      setSwipeDirection('right');
+      
+      setTimeout(() => {
+        if (currentCard.nextIfLike) {
+          setCurrentCardId(currentCard.nextIfLike);
+        } else {
+          setIsFinished(true);
+        }
+        setSwipeDirection(null);
+      }, 300);
+    }
+  };
+
+  const handleDislike = () => {
+    if (currentCard) {
+      setDisliked([...disliked, currentCard]);
+      setViewedCards([...viewedCards, currentCard.id]);
+      setSwipeDirection('left');
+      
+      setTimeout(() => {
+        if (currentCard.nextIfDislike) {
+          setCurrentCardId(currentCard.nextIfDislike);
+        } else {
+          setIsFinished(true);
+        }
+        setSwipeDirection(null);
+      }, 300);
+    }
+  };
+
+  const handleFavorite = () => {
+    if (currentCard) {
+      setFavorites([...favorites, currentCard]);
+      setSwipeDirection('up');
+      setTimeout(() => {
+        setSwipeDirection(null);
+      }, 300);
+    }
+  };
+
+  const handleReset = () => {
+    setCurrentCardId(1);
+    setLiked([]);
+    setDisliked([]);
+    setViewedCards([]);
+    setIsFinished(false);
+  };
+
+  const getCardStyle = () => {
+    if (!currentCard) return {};
+    
+    let transform = '';
+    let opacity = 1;
+    
+    if (offsetX !== 0) {
+      transform = `translateX(${offsetX}px) rotate(${offsetX * 0.05}deg)`;
+    }
+    
+    if (offsetY !== 0) {
+      transform = `translateY(${offsetY}px) scale(${1 - Math.abs(offsetY) / 1000})`;
+    }
+    
+    if (swipeDirection === 'right') {
+      transform = 'translateX(1000px) rotate(30deg)';
+      opacity = 0;
+    } else if (swipeDirection === 'left') {
+      transform = 'translateX(-1000px) rotate(-30deg)';
+      opacity = 0;
+    } else if (swipeDirection === 'up') {
+      transform = 'translateY(-1000px) scale(0.5)';
+      opacity = 0;
+    }
+    
+    return {
+      transform,
+      opacity,
+      transition: swipeDirection ? 'transform 0.5s, opacity 0.5s' : ''
+    };
+  };
+
+  return (
+    <div className="flex flex-col items-center bg-gray-100 min-h-screen w-full">
+      <main className="flex-1 w-full flex flex-col items-center justify-center">
+        {showFavorites ? (
+          <div className="w-full h-full bg-white p-4 min-h-screen flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Favorite Buildings</h2>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleReset} 
+                  className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"
+                >
+                  <RotateCcw size={20} />
+                </button>
+                <button 
+                  onClick={() => setShowFavorites(false)} 
+                  className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"
+                >
+                  <BarChart2 size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {favoriteChartData.length > 0 ? (
+              <div className="h-80 flex-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={favoriteChartData}
+                    margin={{ top: 20, right: 10, left: 10, bottom: 40 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end"
+                      height={70}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="favorites" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center flex-1 text-gray-500">
+                <Heart size={48} className="mb-2" />
+                <p>No favorites yet</p>
+                <p className="text-sm mt-2">Swipe up on buildings you like to add them as favorites</p>
+              </div>
+            )}
+            
+            <div className="mt-4">
+              <h3 className="font-medium mb-2">Total favorites: {favorites.length}</h3>
+              <ul className="text-sm text-gray-600 max-h-40 overflow-y-auto">
+                {cards.map(card => {
+                  const count = favorites.filter(fav => fav.id === card.id).length;
+                  return count > 0 ? (
+                    <li key={card.id} className="flex justify-between mb-1">
+                      <span>{card.title}</span>
+                      <span>{count} ❤️</span>
+                    </li>
+                  ) : null;
+                })}
+              </ul>
+            </div>
+          </div>
+        ) : currentCard && !isFinished ? (
+          <div 
+            ref={cardRef}
+            className="w-full h-screen relative bg-black overflow-hidden"
+            style={getCardStyle()}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <img 
+              src={currentCard.image} 
+              alt={currentCard.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
+              <h2 className="text-white text-xl font-bold">{currentCard.title}</h2>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              {swipeDirection === 'left' && (
+                <div className="bg-red-500 text-white p-4 rounded-lg transform rotate-12 border-2 border-white text-3xl font-bold opacity-90">
+                  NOPE
+                </div>
+              )}
+              {swipeDirection === 'right' && (
+                <div className="bg-green-500 text-white p-4 rounded-lg transform -rotate-12 border-2 border-white text-3xl font-bold opacity-90">
+                  LIKE
+                </div>
+              )}
+              {swipeDirection === 'up' && (
+                <div className="bg-purple-500 text-white p-4 rounded-lg border-2 border-white text-3xl font-bold opacity-90">
+                  FAVORITE
+                </div>
+              )}
+            </div>
+            <div className="absolute top-4 right-4 z-10">
+              <button 
+                onClick={() => setShowFavorites(true)} 
+                className="p-2 bg-black/30 backdrop-blur-sm rounded-full text-white hover:bg-black/50"
+              >
+                <BarChart2 size={20} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-screen w-full bg-black text-white p-6">
+            <h2 className="text-2xl font-bold mb-4">Journey Complete</h2>
+            <p className="mb-6">You've reached the end of this building path.</p>
+            <p className="mb-6">Buildings viewed: {viewedCards.length} | Liked: {liked.length} | Disliked: {disliked.length}</p>
+            <div className="flex flex-col space-y-4 w-64">
+              <button 
+                onClick={handleReset} 
+                className="px-6 py-3 bg-white text-black rounded-lg font-medium hover:bg-gray-200"
+              >
+                Start Over
+              </button>
+              <button 
+                onClick={() => setShowFavorites(true)} 
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700"
+              >
+                View Favorites
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
